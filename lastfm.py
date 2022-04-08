@@ -1,19 +1,18 @@
-from calendar import week
-from re import sub
-from turtle import clear
 from playwright.sync_api import sync_playwright
 import sys
 
-#Intro documentation
-#https://playwright.dev/python/docs/intro#interactive-mode-repl
+# Intro documentation
+# https://playwright.dev/python/docs/intro#interactive-mode-repl
 
-#with stops playwright at the end
-#if testing in the console, dont use with
-#start with => playwright = sync_playwright.start()
-#stop with playwright.stop()
+# with stops playwright at the end
+# if testing in the console, dont use with
+# start with => playwright = sync_playwright.start()
+# stop with playwright.stop()
+
 
 def get_user(url):
     return url.rsplit("/", 1)[-1]
+
 
 # Detect whether or not the username results in a 404 error (valid username)
 # def failed(page, user):
@@ -26,16 +25,24 @@ def get_user(url):
 #     else:
 #         return False
 
+
 def total_listens(page, user):
-    page.goto("https://www.last.fm/user/" + user + "/listening-report")
-    weekly_stats_all = page.query_selector_all('div.header-metadata-display')
-    
-    #weekly_stats is an array with entry 0 as total scrobbles, and entry 1 as total listening time
+    response = page.goto(
+        "https://www.last.fm/user/" + user + "/listening-report", wait_until="domcontentloaded"
+    )
+
+    if response.status == 404:
+        raise Exception("Invalid username!")
+
+    weekly_stats_all = page.query_selector_all("div.header-metadata-display")
+
+    # weekly_stats is an array with entry 0 as total scrobbles, and entry 1 as total listening time
     weekly_stats = []
     weekly_stats.append(weekly_stats_all[0].inner_text())
     weekly_stats.append(weekly_stats_all[2].inner_text())
 
     return weekly_stats
+
 
 def ave_song_length(listens, time):
     scrobbles = listens.split(" ")
@@ -60,6 +67,7 @@ def ave_song_length(listens, time):
 
     return ave_min
 
+
 valid_user = False
 
 try:
@@ -75,10 +83,14 @@ if valid_user:
 
         stats = total_listens(page, user)
         ave_song_len = ave_song_length(stats[0], stats[1])
-        
+
         browser.close()
 
         scrobbles = stats[0]
         total_time = stats[1]
 
-        print("Total Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length: {} minutes".format(scrobbles, total_time, str(round(ave_song_len, 2))))
+        print(
+            "Total Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length: {} minutes".format(
+                scrobbles, total_time, str(round(ave_song_len, 2))
+            )
+        )
