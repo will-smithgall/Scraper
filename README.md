@@ -10,3 +10,13 @@ This will be used as a tool to keep track of information among friends such as t
 ```sh
 pip install -r requirements.txt
 ```
+
+## Users File
+
+The text file ```users.txt``` should be filled with links to users last.fm profiles
+For example:
+
+```sh
+https://www.last.fm/user/user1
+https://www.last.fm/user/user2
+```
