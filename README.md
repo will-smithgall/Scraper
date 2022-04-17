@@ -20,3 +20,5 @@ For example:
 https://www.last.fm/user/user1
 https://www.last.fm/user/user2
 ```
+
+These are the users the program will attain the data from

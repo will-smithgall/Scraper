@@ -1,29 +1,17 @@
 from playwright.sync_api import sync_playwright
-import sys
 
-# Intro documentation
-# https://playwright.dev/python/docs/intro#interactive-mode-repl
+file_name = "users.txt"
+username_links = []
 
-# with stops playwright at the end
-# if testing in the console, dont use with
-# start with => playwright = sync_playwright.start()
-# stop with playwright.stop()
+
+def parse_user(file):
+    with open(file) as f:
+        username_links = list(f)
+        return(username_links)
 
 
 def get_user(url):
     return url.rsplit("/", 1)[-1]
-
-
-# Detect whether or not the username results in a 404 error (valid username)
-# def failed(page, user):
-#     page.goto("https://www.last.fm/user/" + user)
-#     temp = page.query_selector_all('div.col-sm-7 col-sm-push-4')
-#     temp = temp.split()
-#     print(temp)
-#     if len(temp) > 0:
-#         return True
-#     else:
-#         return False
 
 
 def total_listens(page, user):
@@ -68,29 +56,33 @@ def ave_song_length(listens, time):
     return ave_min
 
 
-valid_user = False
+u = parse_user("users.txt")
+users = []
 
-try:
-    user = get_user(sys.argv[1])
-    valid_user = True
-except:
-    print("Enter a valid last.fm link")
+for link in u:
+    users.append(get_user(link).rstrip())
 
-if valid_user:
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    page = browser.new_page()
 
+    all_users_stats = {}
+
+    for user in users:
         stats = total_listens(page, user)
         ave_song_len = ave_song_length(stats[0], stats[1])
 
-        browser.close()
+        all_stats = []
+        all_stats.append(stats[0])
+        all_stats.append(stats[1])
+        all_stats.append(ave_song_length(stats[0], stats[1]))
 
-        scrobbles = stats[0]
-        total_time = stats[1]
+        all_users_stats[user] = all_stats
 
+    browser.close()
+
+    for key, value in all_users_stats.items():
         print(
-            "Total Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length: {} minutes".format(
-                scrobbles, total_time, str(round(ave_song_len, 2))
-            )
+            key + ":\nTotal Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length: {} minutes\n".format(
+            value[0], value[1], str(round(value[2], 2)))
         )
