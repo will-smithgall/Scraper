@@ -22,3 +22,7 @@ https://www.last.fm/user/user2
 ```
 
 These are the users the program will attain the data from
+
+## Future
+1. In the highest_song() method, get the number of listens for the top song
+2. Sort output data by their associated keys (usernames)
