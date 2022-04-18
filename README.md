@@ -39,4 +39,4 @@ Each time ```lastfm.py``` is run, it will add the next weeks data onto the pre-e
 
 ## Future
 1. In the highest_song() method, get the number of listens for the top song
-2. Sort output data by their associated keys (usernames)
+2. When adding data to the SQLite database, add them in pre-sorted order, such that each seperate week will have the user with the top scrobbles at the top (for that week), and then decrementing downwards.
