@@ -1,4 +1,8 @@
+from logging.config import listen
+from turtle import width
 from playwright.sync_api import sync_playwright
+from datetime import datetime
+import sqlite3
 
 file_name = "users.txt"
 username_links = []
@@ -53,7 +57,7 @@ def ave_song_length(listens, time):
 
     ave_min = ave_min / int(scrobbles[0])
 
-    return ave_min
+    return str(round(ave_min, 2)) + " minutes"
 
 #finds the users most popular song of the last week, as well as how many times they listened to it
 #possible for the future -> grab album art somehow?
@@ -75,6 +79,16 @@ def top_song(page, user):
 
     return summary
 
+def curr_week(page, user):
+    page.goto("https://www.last.fm/user/" + user)
+
+    week_text = page.query_selector_all("span.listening-report-promo-date")[0].inner_text().strip()
+    week_text = week_text.split("—")
+    
+    return week_text[0].strip() + ", " + str(datetime.now().year)
+
+
+
 u = parse_user("users.txt")
 users = []
 
@@ -87,6 +101,10 @@ with sync_playwright() as p:
     page = browser.new_page()
 
     all_users_stats = {}
+
+    #use first user in users to get the week, as it is the same for everyone
+    #no need to calculate this value multiple times when it is constant
+    this_week = curr_week(page, users[0])
 
     #For each user, go through and grab the statistics
     #Add them each to the dictionary all_user_stats, with the key being the user name
@@ -101,16 +119,49 @@ with sync_playwright() as p:
         all_stats.append(stats[1])
         all_stats.append(ave_song_length(stats[0], stats[1]))
         all_stats.append(popular_song)
+        all_stats.append(this_week)
 
         all_users_stats[user] = all_stats
 
     #close browser
     browser.close()
 
-    #for each key value pair, print out the stastics which translates to user -> associated statistics 
-    #Possible sort this data by the key value in future
+#for each key value pair, print out the stastics which translates to user -> associated statistics 
+#Possible sort this data by the key value in future
+
+# for key, value in all_users_stats.items():
+#     print(
+#         key + """:\nTotal Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length:
+#          {} minutes\nMost Listened to Song: {}\n""".format(
+#          value[0], value[1], str(round(value[2], 2)), value[3])
+#     )
+
+#SQLITE - - - -
+def insert_db(week_of, name, total_scrobbles, listening_time, song_length, top_song):
+    connection = sqlite3.connect("stats.db")
+    cursor = connection.cursor()
+
+    data = (week_of, name, total_scrobbles, listening_time, song_length, top_song)
+    insert_data = """INSERT INTO scrobbles 
+        (week_of, name, total_scrobbles, listening_time, song_length, top_song)
+        VALUES (?, ?, ?, ?, ?, ?);"""
+    
+    cursor.execute(insert_data, data)
+    connection.commit()
+
+    cursor.close()
+
+connection = sqlite3.connect("stats.db")
+cursor = connection.cursor()
+
+try:
+    cursor.execute("CREATE TABLE scrobbles (week_of TEXT, name TEXT, total_scrobbles TEXT, listening_time TEXT, song_length TEXT, top_song TEXT)")
+
     for key, value in all_users_stats.items():
-        print(
-            key + ":\nTotal Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length: {} minutes\nMost Listened to Song: {}\n".format(
-            value[0], value[1], str(round(value[2], 2)), value[3])
-        )
+        insert_db(value[4], key, value[0], value[1], value[2], value[3])
+except sqlite3.OperationalError as error:
+    print("table already exists, adding on to existing table")
+
+    for key, value in all_users_stats.items():
+        insert_db(value[4], key, value[0], value[1], value[2], value[3])
+    
