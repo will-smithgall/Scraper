@@ -160,8 +160,5 @@ try:
     for key, value in all_users_stats.items():
         insert_db(value[4], key, value[0], value[1], value[2], value[3])
 except sqlite3.OperationalError as error:
-    print("table already exists, adding on to existing table")
-
     for key, value in all_users_stats.items():
         insert_db(value[4], key, value[0], value[1], value[2], value[3])
-    
