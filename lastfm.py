@@ -1,7 +1,7 @@
 from logging.config import listen
 from turtle import width
 from playwright.sync_api import sync_playwright
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 
 file_name = "users.txt"
@@ -13,9 +13,13 @@ def parse_user(file):
         username_links = list(f)
         return(username_links)
 
+
+
 #Takes the user portion from the url
 def get_user(url):
     return url.rsplit("/", 1)[-1]
+
+
 
 #This method gets both the number of scrobbles from the week, as well as the total listening hours
 def total_listens(page, user):
@@ -34,6 +38,8 @@ def total_listens(page, user):
     weekly_stats.append(weekly_stats_all[2].inner_text())
 
     return weekly_stats
+
+
 
 #Calculates average song length from total listens and total time
 def ave_song_length(listens, time):
@@ -59,6 +65,8 @@ def ave_song_length(listens, time):
 
     return str(round(ave_min, 2)) + " minutes"
 
+
+
 #finds the users most popular song of the last week, as well as how many times they listened to it
 #possible for the future -> grab album art somehow?
 def top_song(page, user):
@@ -79,14 +87,22 @@ def top_song(page, user):
 
     return summary
 
-def curr_week(page, user):
-    page.goto("https://www.last.fm/user/" + user)
 
-    week_text = page.query_selector_all("span.listening-report-promo-date")[0].inner_text().strip()
-    week_text = week_text.split("—")
+
+def curr_week():
     
-    return week_text[0].strip() + ", " + str(datetime.now().year)
+    day = datetime.now()
 
+    last_friday = (day.date()
+    - timedelta(days=day.weekday())
+    + timedelta(days=4, weeks=-2))
+
+    time = last_friday.strftime("%m/%d/%Y")
+
+    return time
+
+def sort_dict(dc):
+    return dict(sorted(dc.items(), reverse=True))
 
 
 u = parse_user("users.txt")
@@ -104,7 +120,7 @@ with sync_playwright() as p:
 
     #use first user in users to get the week, as it is the same for everyone
     #no need to calculate this value multiple times when it is constant
-    this_week = curr_week(page, users[0])
+    this_week = curr_week()
 
     #For each user, go through and grab the statistics
     #Add them each to the dictionary all_user_stats, with the key being the user name
@@ -115,15 +131,16 @@ with sync_playwright() as p:
         ave_song_len = ave_song_length(stats[0], stats[1])
 
         all_stats = []
-        all_stats.append(stats[0])
+        all_stats.append(user)
         all_stats.append(stats[1])
         all_stats.append(ave_song_length(stats[0], stats[1]))
         all_stats.append(popular_song)
         all_stats.append(this_week)
 
-        all_users_stats[user] = all_stats
+        all_users_stats[stats[0]] = all_stats
 
     #close browser
+    all_users_stats = sort_dict(all_users_stats)
     browser.close()
 
 #for each key value pair, print out the stastics which translates to user -> associated statistics 
@@ -158,7 +175,7 @@ try:
     cursor.execute("CREATE TABLE scrobbles (week_of TEXT, name TEXT, total_scrobbles TEXT, listening_time TEXT, song_length TEXT, top_song TEXT)")
 
     for key, value in all_users_stats.items():
-        insert_db(value[4], key, value[0], value[1], value[2], value[3])
+        insert_db(value[4], value[0], key, value[1], value[2], value[3])
 except sqlite3.OperationalError as error:
     for key, value in all_users_stats.items():
-        insert_db(value[4], key, value[0], value[1], value[2], value[3])
+        insert_db(value[4], value[0], key, value[1], value[2], value[3])
