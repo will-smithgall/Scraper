@@ -92,10 +92,12 @@ def top_song(page, user):
 def curr_week():
     
     day = datetime.now()
+    curr_day = day.weekday()
 
-    last_friday = (day.date()
-    - timedelta(days=day.weekday())
-    + timedelta(days=4, weeks=-2))
+    if (curr_day <= 5):
+        last_friday = (day.date() - timedelta(days=day.weekday()) + timedelta(days=4, weeks=-1))
+    else:
+        last_friday = (day.date() - timedelta(days=day.weekday()) + timedelta(days=4, weeks=-2))
 
     time = last_friday.strftime("%m/%d/%Y")
 
