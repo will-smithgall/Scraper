@@ -1,5 +1,4 @@
-from logging.config import listen
-from turtle import width
+from socket import timeout
 from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta
 import sqlite3
@@ -24,7 +23,7 @@ def get_user(url):
 #This method gets both the number of scrobbles from the week, as well as the total listening hours
 def total_listens(page, user):
     response = page.goto(
-        "https://www.last.fm/user/" + user + "/listening-report", wait_until="domcontentloaded"
+        "https://www.last.fm/user/" + user + "/listening-report", wait_until="domcontentloaded", timeout=0
     )
 
     if response.status == 404:
@@ -35,8 +34,24 @@ def total_listens(page, user):
     # weekly_stats is an array with entry 0 as total scrobbles, and entry 1 as total listening time
     weekly_stats = []
     weekly_stats.append(weekly_stats_all[0].inner_text())
-    weekly_stats.append(weekly_stats_all[2].inner_text())
 
+    times = weekly_stats_all[2].inner_text().split(",")
+    times_copy = weekly_stats_all[2].inner_text().split(",")
+    hours = 0
+
+    for t in times:
+        sub_t = " ".join(t.split()).split(" ")
+
+        if len(times_copy) == 1:
+            if sub_t[1] == "day":
+                hours = hours + (int(sub_t[0]) * 24)
+            else:
+                hours = hours + (int(sub_t[0]))
+        elif len(times_copy) == 2:
+            hours = int(int(sub_t[0])) * 24
+            times_copy.remove(times_copy[0])
+            
+    weekly_stats.append(str(hours) + " hours")
     return weekly_stats
 
 
@@ -44,24 +59,9 @@ def total_listens(page, user):
 #Calculates average song length from total listens and total time
 def ave_song_length(listens, time):
     scrobbles = listens.split(" ")
+    time_split = time.split(" ")
 
-    times = time.split(",")
-    times_copy = time.split(",")
-    ave_min = 0
-
-    for t in times:
-        sub_t = " ".join(t.split()).split(" ")
-
-        if len(times_copy) == 1:
-            if sub_t[1] == "day":
-                ave_min = ave_min + (int(sub_t[0]) * 60 * 24)
-            else:
-                ave_min = ave_min + (int(sub_t[0]) * 60)
-        elif len(times_copy) == 2:
-            ave_min = int(int(sub_t[0])) * 24 * 60
-            times_copy.remove(times_copy[0])
-
-    ave_min = ave_min / int(scrobbles[0])
+    ave_min = (int(time_split[0]) * 60) / int(scrobbles[0])
 
     return str(round(ave_min, 2)) + " minutes"
 
@@ -73,7 +73,7 @@ def top_song(page, user):
     #Do i need to check for 404 error here if i already did in the first method?
     #This method will be called after the method with checks, and since im calling it on the same users?
 
-    page.goto("https://www.last.fm/user/" + user + "/library/tracks?date_preset=LAST_7_DAYS")
+    page.goto("https://www.last.fm/user/" + user + "/library/tracks?date_preset=LAST_7_DAYS", timeout=0)
     
     #Grab first song name
     song = page.query_selector_all("td.chartlist-name")[0].inner_text()
@@ -94,7 +94,7 @@ def curr_week():
     day = datetime.now()
     curr_day = day.weekday()
 
-    if (curr_day <= 5):
+    if (curr_day == 5):
         last_friday = (day.date() - timedelta(days=day.weekday()) + timedelta(days=4, weeks=-1))
     else:
         last_friday = (day.date() - timedelta(days=day.weekday()) + timedelta(days=4, weeks=-2))
@@ -105,6 +105,9 @@ def curr_week():
 
 def sort_dict(dc):
     return dict(sorted(dc.items(), reverse=True))
+
+def first_n_dict(dc, n):
+    return dict(list(dc.items())[0:n])
 
 
 u = parse_user("users.txt")
@@ -119,6 +122,9 @@ with sync_playwright() as p:
     page = browser.new_page()
 
     all_users_stats = {}
+    leaderboard_scrobbles = {}
+    leaderboard_time = {}
+    leaderboard_ave = {}
 
     #use first user in users to get the week, as it is the same for everyone
     #no need to calculate this value multiple times when it is constant
@@ -135,27 +141,42 @@ with sync_playwright() as p:
         all_stats = []
         all_stats.append(user)
         all_stats.append(stats[1])
-        all_stats.append(ave_song_length(stats[0], stats[1]))
+        all_stats.append(ave_song_len)
         all_stats.append(popular_song)
         all_stats.append(this_week)
 
         all_users_stats[stats[0]] = all_stats
 
-    #close browser
+        l_scrobbles = []
+        l_scrobbles.append(user)
+        leaderboard_scrobbles[stats[0]] = l_scrobbles
+
+        l_time = []
+        l_time.append(user)
+        leaderboard_time[int(stats[1].split(" ")[0])] = l_time
+
+        l_ave = []
+        l_ave.append(user)
+        leaderboard_ave[ave_song_len] = l_ave
+
     all_users_stats = sort_dict(all_users_stats)
+
+    leaderboard_ave = sort_dict(leaderboard_ave)
+    leaderboard_ave = first_n_dict(leaderboard_ave, 5)
+    leaderboard_ave = list(leaderboard_ave.values())
+
+    leaderboard_scrobbles = sort_dict(leaderboard_scrobbles)
+    leaderboard_scrobbles = first_n_dict(leaderboard_scrobbles, 5)
+    leaderboard_scrobbles = list(leaderboard_scrobbles.values())
+
+    leaderboard_time = sort_dict(leaderboard_time)
+    leaderboard_time = first_n_dict(leaderboard_time, 5)
+    leaderboard_time = list(leaderboard_time.values())
+
+    #close browser
     browser.close()
 
-#for each key value pair, print out the stastics which translates to user -> associated statistics 
-#Possible sort this data by the key value in future
-
-# for key, value in all_users_stats.items():
-#     print(
-#         key + """:\nTotal Scrobbles: {}\nTotal Listening Time: {}\nAverage Song Length:
-#          {} minutes\nMost Listened to Song: {}\n""".format(
-#          value[0], value[1], str(round(value[2], 2)), value[3])
-#     )
-
-#SQLITE - - - -
+# SQLITE - - - -
 def insert_db(week_of, name, total_scrobbles, listening_time, song_length, top_song):
     connection = sqlite3.connect("stats.db")
     cursor = connection.cursor()
