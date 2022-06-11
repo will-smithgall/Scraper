@@ -13,12 +13,15 @@ pip install -r requirements.txt
 
 ## Users File
 
+Create a text file called ```users.txt```
+
 The text file ```users.txt``` should be filled with links to users last.fm profiles
 For example:
 
 ```sh
 https://www.last.fm/user/user1
 https://www.last.fm/user/user2
+...
 ```
 
 These are the users the program will attain the data from
@@ -36,6 +39,8 @@ This data will look like this
 | ... | ... | ... | ... | ... | ... |
 
 Each time ```lastfm.py``` is run, it will add the next weeks data onto the pre-existing database, where ```week_of``` will be the next week
+
+If a user has listened to no music within the past week, their data will be filled with 0s as well as None for text entries.
 
 ## Future
 1. In the highest_song() method, get the number of listens for the top song
