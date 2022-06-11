@@ -33,37 +33,43 @@ def total_listens(page, user):
 
     # weekly_stats is an array with entry 0 as total scrobbles, and entry 1 as total listening time
     weekly_stats = []
-    weekly_stats.append(weekly_stats_all[0].inner_text())
 
-    times = weekly_stats_all[2].inner_text().split(",")
-    times_copy = weekly_stats_all[2].inner_text().split(",")
-    hours = 0
+    # check if any music has been listened to
+    if len(weekly_stats_all) == 0:
+        weekly_stats.append(0)
+        weekly_stats.append("0 Hours")
+    else:
+        weekly_stats.append(int(weekly_stats_all[0].inner_text().split(" ")[0]))
 
-    for t in times:
-        sub_t = " ".join(t.split()).split(" ")
+        times = weekly_stats_all[2].inner_text().split(",")
+        times_copy = weekly_stats_all[2].inner_text().split(",")
+        hours = 0
 
-        if len(times_copy) == 1:
-            if sub_t[1] == "day":
-                hours = hours + (int(sub_t[0]) * 24)
-            else:
-                hours = hours + (int(sub_t[0]))
-        elif len(times_copy) == 2:
-            hours = int(int(sub_t[0])) * 24
-            times_copy.remove(times_copy[0])
-            
-    weekly_stats.append(str(hours) + " hours")
+        for t in times:
+            sub_t = " ".join(t.split()).split(" ")
+
+            if len(times_copy) == 1:
+                if sub_t[1] == "day":
+                    hours = hours + (int(sub_t[0]) * 24)
+                else:
+                    hours = hours + (int(sub_t[0]))
+            elif len(times_copy) == 2:
+                hours = int(int(sub_t[0])) * 24
+                times_copy.remove(times_copy[0])
+                
+        weekly_stats.append(str(hours) + " Hours")
+
     return weekly_stats
 
 
 
 #Calculates average song length from total listens and total time
 def ave_song_length(listens, time):
-    scrobbles = listens.split(" ")
     time_split = time.split(" ")
 
-    ave_min = (int(time_split[0]) * 60) / int(scrobbles[0])
+    ave_min = (int(time_split[0]) * 60) / listens
 
-    return str(round(ave_min, 2)) + " minutes"
+    return str(round(ave_min, 2)) + " Minutes"
 
 
 
@@ -75,18 +81,23 @@ def top_song(page, user):
 
     page.goto("https://www.last.fm/user/" + user + "/library/tracks?date_preset=LAST_7_DAYS", timeout=0)
     
-    #Grab first song name
-    song = page.query_selector_all("td.chartlist-name")[0].inner_text()
+    try:
+        #Grab first song name
+        song = page.query_selector_all("td.chartlist-name")[0].inner_text()
 
-    #Grab first artist name
-    artist = page.query_selector_all("td.chartlist-artist")[0].inner_text()
+        #Grab first artist name
+        artist = page.query_selector_all("td.chartlist-artist")[0].inner_text()
 
-    #Try to get amount of listens for that top song
-    
-    summary = song + " by " + artist
+        #Try to get amount of listens for that top song
 
-    return summary
+        summary = song + " by " + artist
+        return summary
 
+    except IndexError as error:
+        #If no music is found, set each value as none
+        song = "None"
+        artist = "None"
+        return "None"
 
 
 def curr_week():
@@ -106,10 +117,6 @@ def curr_week():
 def sort_dict(dc):
     return dict(sorted(dc.items(), reverse=True))
 
-def first_n_dict(dc, n):
-    return dict(list(dc.items())[0:n])
-
-
 u = parse_user("users.txt")
 users = []
 
@@ -122,9 +129,6 @@ with sync_playwright() as p:
     page = browser.new_page()
 
     all_users_stats = {}
-    leaderboard_scrobbles = {}
-    leaderboard_time = {}
-    leaderboard_ave = {}
 
     #use first user in users to get the week, as it is the same for everyone
     #no need to calculate this value multiple times when it is constant
@@ -136,7 +140,12 @@ with sync_playwright() as p:
     for user in users:
         stats = total_listens(page, user)
         popular_song = top_song(page, user)
-        ave_song_len = ave_song_length(stats[0], stats[1])
+
+        #Check for zero to avoid divide by zero error
+        if (stats[0] == 0):
+            ave_song_len = "0 Minutes"
+        else:
+            ave_song_len = ave_song_length(stats[0], stats[1])
 
         all_stats = []
         all_stats.append(user)
@@ -147,31 +156,14 @@ with sync_playwright() as p:
 
         all_users_stats[stats[0]] = all_stats
 
-        l_scrobbles = []
-        l_scrobbles.append(user)
-        leaderboard_scrobbles[stats[0]] = l_scrobbles
-
-        l_time = []
-        l_time.append(user)
-        leaderboard_time[int(stats[1].split(" ")[0])] = l_time
-
-        l_ave = []
-        l_ave.append(user)
-        leaderboard_ave[ave_song_len] = l_ave
-
     all_users_stats = sort_dict(all_users_stats)
 
-    leaderboard_ave = sort_dict(leaderboard_ave)
-    leaderboard_ave = first_n_dict(leaderboard_ave, 5)
-    leaderboard_ave = list(leaderboard_ave.values())
+    stats_kv = list(all_users_stats.items())
+    all_users_stats.clear()
+    for k, v in stats_kv:
+        all_users_stats[str(k) + " Scrobbles"] = v
 
-    leaderboard_scrobbles = sort_dict(leaderboard_scrobbles)
-    leaderboard_scrobbles = first_n_dict(leaderboard_scrobbles, 5)
-    leaderboard_scrobbles = list(leaderboard_scrobbles.values())
-
-    leaderboard_time = sort_dict(leaderboard_time)
-    leaderboard_time = first_n_dict(leaderboard_time, 5)
-    leaderboard_time = list(leaderboard_time.values())
+    print(all_users_stats)
 
     #close browser
     browser.close()
